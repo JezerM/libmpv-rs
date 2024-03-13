@@ -32,7 +32,7 @@ fn main() -> Result<()> {
     mpv.set_property("volume", 15)?;
     mpv.set_property("vo", "null")?;
 
-    let mut ev_ctx = mpv.create_event_context();
+    let ev_ctx = mpv.event_context();
     ev_ctx.disable_deprecated_events()?;
     ev_ctx.observe_property("volume", Format::Int64, 0)?;
     ev_ctx.observe_property("demuxer-cache-state", Format::Node, 0)?;
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
             // Trigger `Event::EndFile`.
             mpv.playlist_next_force().unwrap();
         });
-        scope.spawn(move |_| loop {
+        scope.spawn(|_| loop {
             let ev = ev_ctx.wait_event(600.).unwrap_or(Err(Error::Null));
 
             match ev {

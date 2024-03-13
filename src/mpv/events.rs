@@ -48,25 +48,6 @@ pub mod mpv_event_id {
     pub use libmpv_sys::mpv_event_id_MPV_EVENT_VIDEO_RECONFIG as VideoReconfig;
 }
 
-impl Mpv {
-    /// Create a context that can be used to wait for events and control which events are listened
-    /// for.
-    ///
-    /// # Panics
-    /// Panics if a context already exists
-    pub fn create_event_context(&self) -> EventContext {
-        match self
-            .events_guard
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        {
-            Ok(_) => EventContext {
-                ctx: self.ctx,
-                _does_not_outlive: PhantomData::<&Self>,
-            },
-            Err(_) => panic!("Event context already exists"),
-        }
-    }
-}
 #[derive(Debug)]
 /// Data that is returned by both `GetPropertyReply` and `PropertyChange` events.
 pub enum PropertyData<'a> {
@@ -162,6 +143,7 @@ pub struct EventContext {
 }
 
 unsafe impl Send for EventContext {}
+unsafe impl Sync for EventContext {}
 
 impl EventContext {
     pub(crate) fn new(ctx: NonNull<libmpv_sys::mpv_handle>) -> Self {
@@ -236,7 +218,7 @@ impl EventContext {
     /// Returns `Some(Err(...))` if there was invalid utf-8, or if either an
     /// `MPV_EVENT_GET_PROPERTY_REPLY`, `MPV_EVENT_SET_PROPERTY_REPLY`, `MPV_EVENT_COMMAND_REPLY`,
     /// or `MPV_EVENT_PROPERTY_CHANGE` event failed, or if `MPV_EVENT_END_FILE` reported an error.
-    pub fn wait_event(&mut self, timeout: f64) -> Option<Result<Event>> {
+    pub fn wait_event(&self, timeout: f64) -> Option<Result<Event>> {
         let event = unsafe { *libmpv_sys::mpv_wait_event(self.ctx.as_ptr(), timeout) };
         if event.event_id != mpv_event_id::None {
             if let Err(e) = mpv_err((), event.error) {
@@ -290,8 +272,6 @@ impl EventContext {
 
                 if let Err(e) = mpv_err((), end_file.error) {
                     Some(Err(e))
-                } else if end_file.reason >= 0 {
-                    Some(Ok(Event::EndFile(end_file.reason as _)))
                 } else {
                     Some(Ok(Event::EndFile(end_file.reason as _)))
                 }
@@ -375,7 +355,7 @@ impl EventContext {
         }
         let raw_callback = Box::into_raw(Box::new(callback));
         self.wakeup_callback_cleanup = Some(Box::new(move || unsafe {
-            Box::from_raw(raw_callback);
+            let _ = Box::from_raw(raw_callback);
         }) as Box<dyn FnOnce()>);
         unsafe {
             mpv_set_wakeup_callback(
