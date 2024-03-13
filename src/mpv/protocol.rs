@@ -19,13 +19,10 @@
 use super::*;
 
 use std::alloc::{self, Layout};
-use std::ffi::CString;
-use std::marker::PhantomData;
 use std::mem;
 use std::os::raw as ctype;
 use std::panic;
 use std::panic::RefUnwindSafe;
-use std::ptr::{self, NonNull};
 use std::slice;
 use std::sync::{atomic::Ordering, Mutex};
 

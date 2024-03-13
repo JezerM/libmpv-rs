@@ -18,12 +18,11 @@
 
 use crate::{mpv::mpv_err, Error, Result};
 use libmpv_sys::{
-    self, mpv_handle, mpv_opengl_init_params, mpv_render_context, mpv_render_context_free,
+    mpv_handle, mpv_opengl_init_params, mpv_render_context, mpv_render_context_free,
     mpv_render_context_render, mpv_render_context_set_update_callback, mpv_render_frame_info,
     mpv_render_param,
 };
 use std::collections::HashMap;
-use std::convert::From;
 use std::ffi::{c_void, CStr};
 use std::os::raw::c_int;
 use std::ptr;
@@ -166,7 +165,6 @@ impl<C> From<OpenGLInitParams<C>> for mpv_opengl_init_params {
         Self {
             get_proc_address: Some(gpa_wrapper::<OpenGLInitParams<C>>),
             get_proc_address_ctx: Box::into_raw(Box::new(val)) as *mut c_void,
-            extra_exts: ptr::null(),
         }
     }
 }
@@ -211,12 +209,12 @@ impl<C> From<RenderParam<C>> for mpv_render_param {
 }
 
 unsafe fn free_void_data<T>(ptr: *mut c_void) {
-    Box::<T>::from_raw(ptr as *mut T);
+    let _ = Box::<T>::from_raw(ptr as *mut T);
 }
 
 unsafe fn free_init_params<C>(ptr: *mut c_void) {
     let params = Box::from_raw(ptr as *mut mpv_opengl_init_params);
-    Box::from_raw(params.get_proc_address_ctx as *mut OpenGLInitParams<C>);
+    let _ = Box::from_raw(params.get_proc_address_ctx as *mut OpenGLInitParams<C>);
 }
 
 impl RenderContext {
@@ -259,7 +257,7 @@ impl RenderContext {
             let raw_array = Box::into_raw(raw_params.into_boxed_slice()) as *mut mpv_render_param;
             let ctx = Box::into_raw(Box::new(std::ptr::null_mut() as _));
             let err = libmpv_sys::mpv_render_context_create(ctx, &mut *mpv, raw_array);
-            Box::from_raw(raw_array);
+            let _ = Box::from_raw(raw_array);
             for (ptr, deleter) in raw_ptrs.iter() {
                 (deleter)(*ptr as _);
             }
@@ -360,7 +358,7 @@ impl RenderContext {
 
         let ret = unsafe { mpv_err((), mpv_render_context_render(self.ctx, raw_array)) };
         unsafe {
-            Box::from_raw(raw_array);
+            let _ = Box::from_raw(raw_array);
         }
 
         unsafe {
@@ -387,7 +385,7 @@ impl RenderContext {
         }
         let raw_callback = Box::into_raw(Box::new(callback));
         self.update_callback_cleanup = Some(Box::new(move || unsafe {
-            Box::from_raw(raw_callback);
+            let _ = Box::from_raw(raw_callback);
         }) as Box<dyn FnOnce()>);
         unsafe {
             mpv_render_context_set_update_callback(
