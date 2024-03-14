@@ -75,5 +75,5 @@ fn main() {
         .wait()
         .expect("mpv-build build failed");
 
-    println!("cargo:rustc-link-search={}/mpv/build/", source);
+    println!("cargo:rustc-link-search={}/lib", source);
 }
